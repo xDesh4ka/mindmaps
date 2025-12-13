@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mind Map Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <!-- Индикатор редактирования -->
+    <div class="editing-indicator" id="editingIndicator">Редактирование текста</div>
+
+    <!-- Кнопки управления -->
+    <div class="controls">
+        <div class="control-row">
+            <button class="control-btn" id="zoomIn" title="Увеличить (Ctrl +)">+</button>
+            <button class="control-btn" id="zoomOut" title="Уменьшить (Ctrl -)">−</button>
+            <button class="control-btn" id="zoomReset" title="Сбросить масштаб">⊙</button>
+            <button class="control-btn" id="centerView" title="Центрировать">⊕</button>
+            <button class="control-btn" id="autoLayout" title="Автораскладка">⚡</button>
+            <button class="control-btn" id="undo" title="Отменить (Ctrl Z)">↶</button>
+            <button class="control-btn" id="redo" title="Повторить (Ctrl Y)">↷</button>
+            <button class="control-btn" id="help" title="Справка">?</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно экспорта -->
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <span class="modal-close" id="closeExport">&times;</span>
+            <div class="modal-header">Экспорт карты</div>
+            <div class="export-options">
+                <button class="btn" id="exportPNG">Скачать PNG</button>
+                <button class="btn" id="exportJSON">Скачать JSON</button>
+            </div>
+            <textarea id="jsonOutput" readonly placeholder="JSON карты появится здесь..."></textarea>
+        </div>
+    </div>
+
+    <!-- Модальное окно импорта -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <span class="modal-close" id="closeImport">&times;</span>
+            <div class="modal-header">Импорт карты</div>
+            <textarea id="jsonInput" placeholder="Вставьте JSON карты сюда..."></textarea>
+            <button class="btn" id="importJSON">Импортировать</button>
+            <button class="btn btn-secondary" id="cancelImport">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно помощи -->
+    <div class="modal" id="helpModal">
+        <div class="modal-content">
+            <span class="modal-close" id="closeHelp">&times;</span>
+            <div class="modal-header">Горячие клавиши и управление</div>
+
+            <div class="help-section">
+                <h3>🖱️ Работа с узлами</h3>
+                <ul>
+                    <li><kbd>Двойной клик</kbd> — создать новый узел</li>
+                    <li><kbd>Клик + ввод</kbd> — редактировать текст узла</li>
+                    <li><kbd>Backspace</kbd> — удалить выделенный узел</li>
+                    <li><kbd>Перетаскивание</kbd> — переместить узел</li>
+                    <li><kbd>Наведение</kbd> — показать кнопки цвета и добавления дочернего узла</li>
+                </ul>
+            </div>
+            <div class="help-section">
+                <h3>📄 Работа с текстом</h3>
+                <ul>
+                    <li><kbd>Enter</kbd> — перенос строки при редактировании</li>
+                    <li><kbd>Двойной клик на узле</kbd> — свернуть/развернуть большой текст</li>
+                    <li>Узлы автоматически растут при вводе</li>
+                </ul>
+            </div>
+            <div class="help-section">
+                <h3>📋 Буфер обмена</h3>
+                <ul>
+                    <li><kbd>Ctrl</kbd> + <kbd>C</kbd> — копировать узлы (или текст узла при редактировании)</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>V</kbd> — вставить узлы (или текст при редактировании)</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>X</kbd> — вырезать текст узла</li>
+                    <li>Можно вставлять текст из любых программ!</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>⌨️ Горячие клавиши</h3>
+                <ul>
+                    <li><kbd>Ctrl</kbd> + <kbd>C</kbd> — копировать выделенные узлы</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>V</kbd> — вставить узлы</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> — отменить действие</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> — повторить действие</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>E</kbd> — экспорт карты</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>I</kbd> — импорт карты</li>
+                    <li><kbd>Ctrl</kbd> + <kbd>H</kbd> — показать помощь</li>
+                    <li><kbd>Стрелки</kbd> — перемещение по canvas</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>🔍 Навигация</h3>
+                <ul>
+                    <li><kbd>Колесо мыши</kbd> — масштабирование</li>
+                    <li><kbd>Перетаскивание фона</kbd> — панорамирование</li>
+                    <li><kbd>Кнопка ⊕</kbd> — центрировать по выделенному узлу или всей карте</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>🎨 Возможности</h3>
+                <ul>
+                    <li>Изменение цвета узла через палитру при наведении</li>
+                    <li>Создание дочерних узлов через кнопку со стрелкой</li>
+                    <li>Автоматическая раскладка узлов</li>
+                    <li>Сворачивание больших текстов</li>
+                </ul>
+            </div>
+
+            <button class="btn" id="closeHelpBtn">Закрыть</button>
+        </div>
+    </div>
+<script src="script.js"></script>
+</body>
+</html>
