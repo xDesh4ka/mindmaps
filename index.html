@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mind Map Editor</title>
+    <title>Hello MindMap</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,6 +22,7 @@
             <button class="control-btn" id="autoLayout" title="Автораскладка">⚡</button>
             <button class="control-btn" id="undo" title="Отменить (Ctrl Z)">↶</button>
             <button class="control-btn" id="redo" title="Повторить (Ctrl Y)">↷</button>
+            <button id="newMap" title="Новая карта (Ctrl+N)">🗑️ Новая карта</button>
             <button class="control-btn" id="help" title="Справка">?</button>
         </div>
     </div>
@@ -57,6 +58,14 @@
             <div class="modal-header">Горячие клавиши и управление</div>
 
             <div class="help-section">
+                <div class="help-section">
+                    <h3>📁 Файл</h3>
+                    <ul>
+                        <li><kbd>Ctrl</kbd> + <kbd>S</kbd> — сохранить в браузер</li>
+                        <li><kbd>Ctrl</kbd> + <kbd>E</kbd> — экспорт PNG/JSON</li>
+                        <li><kbd>Ctrl</kbd> + <kbd>I</kbd> — импорт JSON</li>
+                    </ul>
+                </div>
                 <h3>🖱️ Работа с узлами</h3>
                 <ul>
                     <li><kbd>Двойной клик</kbd> — создать новый узел</li>
@@ -64,6 +73,7 @@
                     <li><kbd>Backspace</kbd> — удалить выделенный узел</li>
                     <li><kbd>Перетаскивание</kbd> — переместить узел</li>
                     <li><kbd>Наведение</kbd> — показать кнопки цвета и добавления дочернего узла</li>
+                    <li><kbd>Shift и клик на связь (стрелку)</kbd> — удалить стрелку</li>
                 </ul>
             </div>
             <div class="help-section">
@@ -91,8 +101,6 @@
                     <li><kbd>Ctrl</kbd> + <kbd>V</kbd> — вставить узлы</li>
                     <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> — отменить действие</li>
                     <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> — повторить действие</li>
-                    <li><kbd>Ctrl</kbd> + <kbd>E</kbd> — экспорт карты</li>
-                    <li><kbd>Ctrl</kbd> + <kbd>I</kbd> — импорт карты</li>
                     <li><kbd>Ctrl</kbd> + <kbd>H</kbd> — показать помощь</li>
                     <li><kbd>Стрелки</kbd> — перемещение по canvas</li>
                 </ul>

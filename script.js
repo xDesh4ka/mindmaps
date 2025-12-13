@@ -16,6 +16,7 @@ const state = {
     historyIndex: -1,
     nodeIdCounter: 0,
     hoveredNodeTimeout: null,
+    clipboardConnections: []
 };
 
 // ============================================================
@@ -470,6 +471,135 @@ class Connection {
 
 
 // ============================================================
+// УТИЛИТЫ: Создание новой карты
+// ============================================================
+function newMap() {
+    // if (!confirm('Создать новую карту?')) {
+        // return;
+    // }
+    
+    // Очищаем состояние
+    state.nodes = [];
+    state.connections = [];
+    state.selectedNodes = [];
+    state.editingNode = null;
+    state.clipboard = [];
+    state.history = [];
+    state.historyIndex = -1;
+    state.camera = { x: 0, y: 0, zoom: 1 };
+    
+    // Создаем начальные узлы
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    
+    const root = createNode(cx, cy, 'Mind Map Editor', CONFIG.COLORS[0]);
+    const c1 = createNode(cx - 200, cy, 'Идея 1', CONFIG.COLORS[1]);
+    const c2 = createNode(cx + 200, cy, 'Идея 2', CONFIG.COLORS[2]);
+    
+    root.children = [c1, c2];
+    c1.parent = root;
+    c2.parent = root;
+    
+    state.connections.push(new Connection(root, c1));
+    state.connections.push(new Connection(root, c2));
+    
+    saveHistory();
+    render();
+}
+
+
+// ============================================================
+// УТИЛИТЫ: LOCAL STORAGE
+// ============================================================
+// Сохранение в localStorage
+function saveToLocalStorage() {
+    try {
+        const data = {
+            nodes: state.nodes.map(n => ({
+                id: n.id,
+                x: n.x,
+                y: n.y,
+                text: n.text,
+                color: n.color,
+                width: n.width,
+                height: n.height,
+                isCollapsed: n.isCollapsed || false,
+                children: n.children.map(c => c.id),
+                parent: n.parent ? n.parent.id : null
+            })),
+            connections: state.connections.map(c => ({
+                from: c.from.id,
+                to: c.to.id
+            })),
+            camera: {
+                x: state.camera.x,
+                y: state.camera.y,
+                zoom: state.camera.zoom
+            }
+        };
+        
+        localStorage.setItem('mindmap_data', JSON.stringify(data));
+        return true;
+    } catch (error) {
+        console.error('❌ Ошибка сохранения:', error);
+        return false;
+    }
+}
+
+// Загрузка из localStorage
+function loadFromLocalStorage() {
+    try {
+        const savedData = localStorage.getItem('mindmap_data');
+        if (!savedData) return false;
+        
+        const data = JSON.parse(savedData);
+        state.nodes = [];
+        state.connections = [];
+        
+        const nodeMap = new Map();
+        
+        // Создаем узлы
+        data.nodes.forEach(nd => {
+            const node = new Node(nd.x, nd.y, nd.text, nd.color);
+            node.id = nd.id;
+            node.width = nd.width;
+            node.height = nd.height;
+            node.isCollapsed = nd.isCollapsed;
+            state.nodes.push(node);
+            nodeMap.set(node.id, node);
+        });
+        
+        // Восстанавливаем связи
+        data.nodes.forEach(nd => {
+            const node = nodeMap.get(nd.id);
+            if (nd.parent) node.parent = nodeMap.get(nd.parent);
+            node.children = nd.children.map(id => nodeMap.get(id)).filter(Boolean);
+        });
+        
+        // Создаем connections
+        data.connections.forEach(cd => {
+            const from = nodeMap.get(cd.from);
+            const to = nodeMap.get(cd.to);
+            if (from && to) state.connections.push(new Connection(from, to));
+        });
+        
+        // Восстанавливаем камеру
+        if (data.camera) {
+            state.camera.x = data.camera.x;
+            state.camera.y = data.camera.y;
+            state.camera.zoom = data.camera.zoom;
+        }
+        
+        render();
+        return true;
+    } catch (error) {
+        console.error('❌ Ошибка загрузки:', error);
+        return false;
+    }
+}
+
+
+// ============================================================
 // УТИЛИТЫ: ПРЕОБРАЗОВАНИЕ КООРДИНАТ
 // ============================================================
 function screenToWorld(screenX, screenY) {
@@ -510,6 +640,8 @@ function saveHistory() {
         state.history.shift();
         state.historyIndex--;
     }
+    // Автосохранение (пока не надо)
+    //saveToLocalStorage();
 }
 
 function undo() {
@@ -734,6 +866,7 @@ function autoLayout() {
 // ============================================================
 // ФУНКЦИИ: КОПИРОВАНИЕ И ВСТАВКА
 // ============================================================
+/*
 function copySelectedNodes() {
     if (state.selectedNodes.length === 0) return;
 
@@ -744,7 +877,37 @@ function copySelectedNodes() {
         height: node.height
     }));
 }
+*/
+function copySelectedNodes() {
+    if (state.selectedNodes.length === 0) return;
+    
+    // Копируем узлы
+    state.clipboard = state.selectedNodes.map(node => ({
+        text: node.text,
+        color: node.color,
+        width: node.width,
+        height: node.height,
+        isCollapsed: node.isCollapsed || false,
+        originalNode: node  // Сохраняем ссылку на оригинал
+    }));
+    
+    state.clipboardConnections = [];
+    
+    state.connections.forEach(conn => {
+        const fromIndex = state.selectedNodes.indexOf(conn.from);
+        const toIndex = state.selectedNodes.indexOf(conn.to);
+        
+        // Если оба узла связи выделены - сохраняем связь
+        if (fromIndex !== -1 && toIndex !== -1) {
+            state.clipboardConnections.push({
+                fromIndex: fromIndex,
+                toIndex: toIndex
+            });
+        }
+    });
+}
 
+/*
 function pasteNodes() {
     if (state.clipboard.length === 0) return;
 
@@ -762,6 +925,93 @@ function pasteNodes() {
         state.selectedNodes.push(node);
     });
 
+    render();
+}
+*/
+function pasteNodes() {
+    if (state.clipboard.length === 0) return;
+    
+    const offset = 50;
+    const newNodes = [];
+    
+    // Создаем новые узлы
+    state.clipboard.forEach(clipNode => {
+        let baseX, baseY;
+        
+        if (state.selectedNodes.length > 0) {
+            baseX = state.selectedNodes[0].x;
+            baseY = state.selectedNodes[0].y;
+        } else if (clipNode.originalNode) {
+            baseX = clipNode.originalNode.x;
+            baseY = clipNode.originalNode.y;
+        } else {
+            baseX = canvas.width / 2;
+            baseY = canvas.height / 2;
+        }
+        
+        const newNode = createNode(
+            baseX + offset,
+            baseY + offset,
+            clipNode.text,
+            clipNode.color
+        );
+        
+        newNode.width = clipNode.width;
+        newNode.height = clipNode.height;
+        newNode.isCollapsed = clipNode.isCollapsed;
+        
+        newNodes.push(newNode);
+    });
+    
+    if (state.clipboardConnections) {
+        state.clipboardConnections.forEach(connData => {
+            const fromNode = newNodes[connData.fromIndex];
+            const toNode = newNodes[connData.toIndex];
+            
+            if (fromNode && toNode) {
+                // Создаем связь
+                state.connections.push(new Connection(fromNode, toNode));
+                
+                // Устанавливаем parent/children
+                toNode.parent = fromNode;
+                if (!fromNode.children.includes(toNode)) {
+                    fromNode.children.push(toNode);
+                }
+            }
+        });
+    }
+    
+    // Выделяем вставленные узлы
+    state.selectedNodes = newNodes;
+    
+    saveHistory();
+    render();
+}
+
+function cutNodes() {
+    if (state.selectedNodes.length === 0) return;
+    
+    // Копируем выделенные узлы в буфер (как при Ctrl+C)
+    copySelectedNodes();
+    
+    // Удаляем выделенные узлы
+    state.selectedNodes.forEach(node => {
+        // Удаляем связи
+        state.connections = state.connections.filter(conn => 
+            conn.from !== node && conn.to !== node
+        );
+        
+        // Удаляем из parent.children
+        if (node.parent) {
+            node.parent.children = node.parent.children.filter(c => c !== node);
+        }
+        
+        // Удаляем узел
+        state.nodes = state.nodes.filter(n => n !== node);
+    });
+    
+    state.selectedNodes = [];
+    saveHistory();
     render();
 }
 
@@ -952,9 +1202,9 @@ canvas.addEventListener('mousedown', (e) => {
     
     if (clickedNode) {
         // Выделение узла
-        if (!e.ctrlKey && !state.selectedNodes.includes(clickedNode)) {
+        if (!e.shiftKey && !state.selectedNodes.includes(clickedNode)) {
             state.selectedNodes = [clickedNode];
-        } else if (e.ctrlKey) {
+        } else if (e.shiftKey) {
             if (state.selectedNodes.includes(clickedNode)) {
                 state.selectedNodes = state.selectedNodes.filter(n => n !== clickedNode);
             } else {
@@ -1181,6 +1431,12 @@ document.addEventListener('keydown', (e) => {
                     pasteNodes();
                 }
                 break;
+            case 'x':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    cutNodes();  // Вырезать узлы
+                }
+                break;
             case 'z':
                 e.preventDefault();
                 undo();
@@ -1191,6 +1447,26 @@ document.addEventListener('keydown', (e) => {
                 break;
             case 'e':
                 e.preventDefault();
+                const data = {
+                    nodes: state.nodes.map(n => ({
+                        id: n.id,
+                        x: n.x,
+                        y: n.y,
+                        text: n.text,
+                        color: n.color,
+                        width: n.width,
+                        height: n.height,
+                        children: n.children.map(c => c.id),
+                        parent: n.parent ? n.parent.id : null
+                    })),
+                    connections: state.connections.map(c => ({
+                        from: c.from.id,
+                        to: c.to.id
+                    }))
+                };
+                
+                const json = JSON.stringify(data, null, 2);
+                document.getElementById('jsonOutput').value = json;
                 document.getElementById('exportModal').classList.add('active');
                 break;
             case 'i':
@@ -1200,6 +1476,13 @@ document.addEventListener('keydown', (e) => {
             case 'h':
                 e.preventDefault();
                 document.getElementById('helpModal').classList.add('active');
+                break;
+            case 's':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    saveToLocalStorage();
+                    // Можно добавить уведомление
+                }
                 break;
             case '+':
             case '=':
@@ -1281,6 +1564,7 @@ document.getElementById('redo').addEventListener('click', redo);
 document.getElementById('help').addEventListener('click', () => {
     document.getElementById('helpModal').classList.add('active');
 });
+document.getElementById('newMap').addEventListener('click', newMap);
 
 // Модальные окна
 document.getElementById('closeExport').addEventListener('click', () => {
@@ -1327,25 +1611,32 @@ document.querySelectorAll('.modal').forEach(modal => {
 // ИНИЦИАЛИЗАЦИЯ: СОЗДАЕМ НАЧАЛЬНЫЕ УЗЛЫ
 // ============================================================
 function init() {
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-
-    // ✅ Корневой узел в центре
-    const root = createNode(centerX, centerY, 'Mind Map Editor', CONFIG.COLORS[0]);
+    // Пытаемся загрузить сохраненную карту
+    const loaded = loadFromLocalStorage();
     
-    // Дочерние узлы слева и справа от корневого
-    const child1 = createNode(centerX - 300, centerY, 'Идея 1', CONFIG.COLORS[1]);
-    const child2 = createNode(centerX + 300, centerY, 'Идея 2', CONFIG.COLORS[2]);
-
-    root.children = [child1, child2];
-    child1.parent = root;
-    child2.parent = root;
-
-    state.connections.push(new Connection(root, child1));
-    state.connections.push(new Connection(root, child2));
-
+    if (!loaded) {
+        newMap()
+        /*
+        // Создаем начальные узлы только если нет сохранения
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        const root = createNode(centerX, centerY, 'Mind Map Editor', CONFIG.COLORS[0]);
+        const child1 = createNode(centerX - 200, centerY, 'Идея 1', CONFIG.COLORS[1]);
+        const child2 = createNode(centerX + 200, centerY, 'Идея 2', CONFIG.COLORS[2]);
+        
+        root.children = [child1, child2];
+        child1.parent = root;
+        child2.parent = root;
+        
+        state.connections.push(new Connection(root, child1));
+        state.connections.push(new Connection(root, child2));
+        */
+    }
+    
     saveHistory();
     render();
 }
+
 
 init();
