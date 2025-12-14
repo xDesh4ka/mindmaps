@@ -1522,7 +1522,6 @@ canvas.addEventListener('mouseup', (e) => {
                     state.connectFromNode.children.push(targetNode);
                 }
                 saveHistory();
-                console.log('✅ Связь создана');
             }
         } else if (!targetNode) {
             // ОТПУСТИЛИ В ПУСТОТЕ - создаем новый узел
