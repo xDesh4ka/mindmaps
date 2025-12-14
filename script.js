@@ -16,7 +16,12 @@ const state = {
     historyIndex: -1,
     nodeIdCounter: 0,
     hoveredNodeTimeout: null,
-    clipboardConnections: []
+    clipboardConnections: [],
+    //
+    connectMode: false,
+    connectFromNode: null,
+    mousePos: { x: 0, y: 0 },
+    isDraggingConnectButton: false,
 };
 
 // ============================================================
@@ -199,6 +204,7 @@ class Node {
     }
 
     // Кнопки при наведении
+    /*
     drawHoverButtons(ctx) {
         // Кнопка добавления дочернего узла
         const btnX = this.x + this.width/2 + 15;
@@ -223,6 +229,44 @@ class Node {
         // Палитра цветов
         this.drawColorPalette(ctx);
     }
+    */
+    drawHoverButtons(ctx) {
+        const buttonSize = 24;
+        const buttonSpacing = 5;
+        
+        // ✅ Кнопка соединения (стрелка) - ЕДИНСТВЕННАЯ кнопка
+        const linkBtnX = this.x + this.width/2 + buttonSpacing;
+        const linkBtnY = this.y;
+        
+        ctx.fillStyle = '#2196F3';
+        ctx.beginPath();
+        ctx.arc(linkBtnX, linkBtnY, buttonSize/2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Рисуем стрелку
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(linkBtnX - 6, linkBtnY);
+        ctx.lineTo(linkBtnX + 6, linkBtnY);
+        ctx.moveTo(linkBtnX + 3, linkBtnY - 3);
+        ctx.lineTo(linkBtnX + 6, linkBtnY);
+        ctx.lineTo(linkBtnX + 3, linkBtnY + 3);
+        ctx.stroke();
+        
+        this.linkButtonBounds = {
+            x: linkBtnX - buttonSize/2,
+            y: linkBtnY - buttonSize/2,
+            width: buttonSize,
+            height: buttonSize
+        };
+        
+        // ✅ Палитра цветов
+        this.drawColorPalette(ctx);
+    }
+
 
     // Палитра цветов
     drawColorPalette(ctx) {
@@ -539,9 +583,10 @@ function saveToLocalStorage() {
         };
         
         localStorage.setItem('mindmap_data', JSON.stringify(data));
+        showNotification('💾 Карта сохранена', 'success');
         return true;
     } catch (error) {
-        console.error('❌ Ошибка сохранения:', error);
+        showNotification('❌ Ошибка сохранения', 'error');
         return false;
     }
 }
@@ -597,6 +642,37 @@ function loadFromLocalStorage() {
         return false;
     }
 }
+
+// ============================================================
+// УВЕДОМЛЕНИЯ
+// ============================================================
+// Универсальная функция показа уведомлений
+function showNotification(message, type = 'success') {
+    const notification = document.getElementById('notification');
+    
+    if (!notification) {
+        console.error('Элемент notification не найден');
+        return;
+    }
+    
+    // Устанавливаем цвет в зависимости от типа
+    const colors = {
+        success: '#4CAF50',
+        error: '#f44336',
+        info: '#2196F3',
+        warning: '#FF9800'
+    };
+    
+    notification.style.background = colors[type] || colors.info;
+    notification.textContent = message;
+    notification.classList.add('active');
+    
+    // Убираем уведомление через время
+    setTimeout(() => {
+        notification.classList.remove('active');
+    }, type === 'error' ? 3000 : 2000);
+}
+
 
 
 // ============================================================
@@ -718,7 +794,9 @@ function deleteNode(node) {
     saveHistory();
 }
 
+/*
 function addChildNode(parentNode) {
+    console.log("add child node")
     const childX = parentNode.x + 250;
     const childY = parentNode.y + parentNode.children.length * 100;
 
@@ -733,6 +811,7 @@ function addChildNode(parentNode) {
     saveHistory();
     render();
 }
+*/
 
 function getNodeAt(x, y) {
     // Проверяем узлы в обратном порядке (сверху вниз)
@@ -1135,6 +1214,7 @@ function importFromJSON(jsonString) {
 // ============================================================
 // ФУНКЦИЯ: ОТРИСОВКА
 // ============================================================
+/*
 function render() {
     // Очищаем canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1157,10 +1237,50 @@ function render() {
 
     ctx.restore();
 }
+*/
+function render() {
+    // Очищаем canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+
+    // Применяем трансформации камеры
+    ctx.translate(state.camera.x, state.camera.y);
+    ctx.scale(state.camera.zoom, state.camera.zoom);
+
+    // Рисуем связи
+    state.connections.forEach(conn => conn.draw(ctx));
+
+    // ✅ НОВОЕ: Рисуем временную линию при перетаскивании кнопки соединения
+    if (state.isDraggingConnectButton && state.connectFromNode && state.mousePos) {
+        ctx.save();
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        
+        ctx.beginPath();
+        ctx.moveTo(state.connectFromNode.x, state.connectFromNode.y);
+        ctx.lineTo(state.mousePos.x, state.mousePos.y);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+
+    // Рисуем узлы
+    state.nodes.forEach(node => {
+        const isSelected = state.selectedNodes.includes(node);
+        const isHovered = state.hoveredNode === node;
+        node.draw(ctx, isSelected, isHovered);
+    });
+
+    ctx.restore();
+}
+
 
 // ============================================================
 // ОБРАБОТЧИКИ СОБЫТИЙ МЫШИ
 // ============================================================
+/*
 canvas.addEventListener('mousedown', (e) => {
     const worldPos = screenToWorld(e.clientX, e.clientY);
     
@@ -1239,9 +1359,102 @@ canvas.addEventListener('mousedown', (e) => {
         render();
     }
 });
+*/
+canvas.addEventListener('mousedown', (e) => {
+    const worldPos = screenToWorld(e.clientX, e.clientY);
+    
+    if (state.editingNode) {
+        stopEditingNode();
+    }
+    
+    // ✅ ПРОВЕРЯЕМ UI ЭЛЕМЕНТЫ (палитра и кнопки)
+    for (const node of state.nodes) {
+        if (state.hoveredNode === node) {
+            
+            // ✅ НОВОЕ: Проверка кнопки соединения (стрелка) - ПЕРВОЙ!
+            if (node.linkButtonBounds) {
+                const bounds = node.linkButtonBounds;
+                if (worldPos.x >= bounds.x && worldPos.x <= bounds.x + bounds.width &&
+                    worldPos.y >= bounds.y && worldPos.y <= bounds.y + bounds.height) {
+                    
+                    e.preventDefault();
+                    state.connectMode = true;
+                    state.connectFromNode = node;
+                    state.isDraggingConnectButton = true;
+                    canvas.style.cursor = 'crosshair';
+                    render();
+                    return;
+                }
+            }
+            
+            // Проверяем палитру цветов
+            if (node.colorPaletteBounds) {
+                for (const colorBound of node.colorPaletteBounds) {
+                    if (worldPos.x >= colorBound.x && 
+                        worldPos.x <= colorBound.x + colorBound.width &&
+                        worldPos.y >= colorBound.y && 
+                        worldPos.y <= colorBound.y + colorBound.height) {
+                        node.color = colorBound.color;
+                        saveHistory();
+                        render();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    
+    const clickedNode = getNodeAt(worldPos.x, worldPos.y);
+    
+    if (clickedNode) {
+        // Выделение узла
+        if (!e.shiftKey && !state.selectedNodes.includes(clickedNode)) {
+            state.selectedNodes = [clickedNode];
+        } else if (e.shiftKey) {
+            if (state.selectedNodes.includes(clickedNode)) {
+                state.selectedNodes = state.selectedNodes.filter(n => n !== clickedNode);
+            } else {
+                state.selectedNodes.push(clickedNode);
+            }
+        }
+        
+        state.isDragging = true;
+        state.dragStart = { x: worldPos.x, y: worldPos.y };
+        render();
+    } else {
+        // Проверяем клик по связи (Shift + клик для удаления)
+        if (e.shiftKey) {
+            for (let i = state.connections.length - 1; i >= 0; i--) {
+                if (state.connections[i].isNearPoint(worldPos.x, worldPos.y)) {
+                    const conn = state.connections[i];
+                    if (conn.to.parent === conn.from) {
+                        conn.to.parent = null;
+                        conn.from.children = conn.from.children.filter(c => c !== conn.to);
+                    }
+                    state.connections.splice(i, 1);
+                    saveHistory();
+                    render();
+                    return;
+                }
+            }
+        }
+        
+        state.selectedNodes = [];
+        state.isPanning = true;
+        state.dragStart = { x: e.clientX, y: e.clientY };
+        render();
+    }
+});
+
 
 canvas.addEventListener('mousemove', (e) => {
     const worldPos = screenToWorld(e.clientX, e.clientY);
+    state.mousePos = worldPos;
+    
+    if (state.isDraggingConnectButton) {
+        render();
+        return;
+    }
 
     if (state.isDragging && state.selectedNodes.length > 0) {
         const dx = worldPos.x - state.dragStart.x;
@@ -1279,7 +1492,7 @@ canvas.addEventListener('mousemove', (e) => {
                 state.hoveredNode = hoveredNode;
                 render();
             } else {
-                // Задержка 500мс перед скрытием
+                // Задержка CONFIG.HOVER_DELAY перед скрытием
                 state.hoveredNodeTimeout = setTimeout(() => {
                     state.hoveredNode = null;
                     render();
@@ -1290,6 +1503,57 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mouseup', (e) => {
+    const worldPos = screenToWorld(e.clientX, e.clientY);
+    
+    // ✅ НОВОЕ: Обработка завершения перетаскивания кнопки соединения
+    if (state.isDraggingConnectButton) {
+        const targetNode = getNodeAt(worldPos.x, worldPos.y);
+        
+        if (targetNode && targetNode !== state.connectFromNode) {
+            // ПЕРЕТАЩИЛИ НА ДРУГОЙ УЗЕЛ - создаем связь
+            const exists = state.connections.some(c => 
+                c.from === state.connectFromNode && c.to === targetNode
+            );
+            
+            if (!exists) {
+                state.connections.push(new Connection(state.connectFromNode, targetNode));
+                targetNode.parent = state.connectFromNode;
+                if (!state.connectFromNode.children.includes(targetNode)) {
+                    state.connectFromNode.children.push(targetNode);
+                }
+                saveHistory();
+                console.log('✅ Связь создана');
+            }
+        } else if (!targetNode) {
+            // ОТПУСТИЛИ В ПУСТОТЕ - создаем новый узел
+            const newNode = createNode(
+                worldPos.x,
+                worldPos.y,
+                'Новый узел',
+                CONFIG.COLORS[state.nodes.length % CONFIG.COLORS.length]
+            );
+            
+            state.connectFromNode.children.push(newNode);
+            newNode.parent = state.connectFromNode;
+            state.connections.push(new Connection(state.connectFromNode, newNode));
+            
+            state.selectedNodes = [newNode];
+            state.editingNode = newNode;
+            
+            saveHistory();
+            setTimeout(() => startEditingNode(newNode), 50);
+        }
+        
+        // Сбрасываем режим соединения
+        state.connectMode = false;
+        state.connectFromNode = null;
+        state.isDraggingConnectButton = false;
+        canvas.style.cursor = 'default';
+        render();
+        return;
+    }
+    
+    // СУЩЕСТВУЮЩИЙ КОД
     if (state.isDragging && state.selectedNodes.length > 0) {
         saveHistory();
     }
@@ -1298,6 +1562,7 @@ canvas.addEventListener('mouseup', (e) => {
     state.isPanning = false;
     state.dragStart = null;
 });
+
 
 canvas.addEventListener('dblclick', (e) => {
     if (state.editingNode) return;
